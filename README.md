@@ -4,13 +4,13 @@
 
 <img width="920" height="923" alt="DevSpace Tunnel Manager" src="https://github.com/user-attachments/assets/5f993a21-f8a6-4383-aef1-fb1794aa0d26" />
 
-一个原生 macOS 菜单栏应用，用于统一管理本地 **DevSpace MCP Server** 和 **Tailscale Funnel**。
+一个原生 macOS 菜单栏应用，用于统一管理本地 **DevSpace MCP Server** 和 **Tailscale Tunnel**。
 
 基于 SwiftUI 开发，当前主要支持 **Apple Silicon（M 系列芯片 / arm64）**。
 
 ## 功能
 
-- Tailscale Funnel 启动、状态检测与 Reset
+- Tailscale Tunnel 启动、状态检测与 Reset
 - 使用 `tailscale funnel --bg` 后台运行
 - `devspace serve` 启动、停止、重启
 - 使用 macOS `launchd` 守护 DevSpace
@@ -118,7 +118,7 @@ serve
 
 如果已有匹配同一端口的旧 LaunchAgent，应用会先卸载旧服务，再迁移到当前管理器。
 
-## Tailscale Funnel
+## Tailscale Tunnel
 
 启动：
 
@@ -132,13 +132,13 @@ tailscale funnel --bg --yes <port>
 tailscale funnel status --json
 ```
 
-Reset / 停止当前 Funnel：
+Reset / 停止当前 Tunnel：
 
 ```bash
 tailscale funnel reset
 ```
 
-公网 MCP URL 会根据当前 Funnel 状态动态生成，不会写死在源码中。
+公网 MCP URL 会根据当前 Tunnel 状态动态生成，不会写死在源码中。
 
 ## 日志
 
