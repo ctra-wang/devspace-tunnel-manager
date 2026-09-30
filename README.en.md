@@ -21,7 +21,7 @@ Built with SwiftUI and designed primarily for **Apple Silicon Macs (arm64)**.
 - Show the current public MCP endpoint
 - View DevSpace stdout / stderr logs
 - Manage the DevSpace Owner password from the UI
-- Configure reverse-proxy trust with `DEVSPACE_TRUST_PROXY=1`
+- Use Tailscale TLS-terminated TCP forwarding while keeping DevSpace `trust proxy=false`
 - Control services from the menu bar
 - Optionally launch the manager at login
 - Automatically locate Tailscale and DevSpace CLIs
@@ -68,10 +68,11 @@ with:
 
 ```text
 PORT=<configured-port>
-DEVSPACE_TRUST_PROXY=1
 ```
 
-and runs:
+DevSpace keeps its default `trust proxy=false`.
+
+It runs:
 
 ```bash
 devspace serve
@@ -118,10 +119,16 @@ If an older LaunchAgent manages the same port, the app unloads it before migrati
 
 ## Tailscale Tunnel
 
+To avoid the proxy-trust conflict caused when an HTTP reverse proxy injects `X-Forwarded-For`, the manager uses **TLS-terminated TCP** mode.
+
+Clients still connect over standard HTTPS. Tailscale terminates TLS and forwards the resulting TCP stream to the local DevSpace server without rewriting HTTP headers, so DevSpace does not need to enable `trust proxy`.
+
 Start:
 
 ```bash
-tailscale funnel --bg --yes <port>
+tailscale funnel --bg --yes \
+  --tls-terminated-tcp=443 \
+  tcp://127.0.0.1:<port>
 ```
 
 Inspect:
@@ -136,7 +143,7 @@ Reset / stop the current Tunnel:
 tailscale funnel reset
 ```
 
-The public MCP URL is derived dynamically from the current Tunnel configuration and is never hard-coded.
+The public MCP URL is derived dynamically from the current Tunnel `TerminateTLS` / `TCPForward` status and is never hard-coded. The manager can still read legacy HTTP reverse-proxy Tunnel status.
 
 ## Logs
 
