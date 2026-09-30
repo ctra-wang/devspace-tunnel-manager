@@ -7,6 +7,8 @@ final class AppState: ObservableObject {
     @Published var workingDirectory: String
     @Published var autoRestart: Bool
     @Published var launchAtLogin: Bool
+    @Published var ownerPassword = ""
+    @Published private(set) var ownerPasswordConfigured = false
 
     @Published private(set) var funnelStatus = FunnelStatus()
     @Published private(set) var devSpaceStatus = DevSpaceStatus()
@@ -40,6 +42,8 @@ final class AppState: ObservableObject {
         }
 
         launchAtLogin = LoginItemService.isEnabled
+        ownerPassword = devspace.ownerPassword() ?? ""
+        ownerPasswordConfigured = devspace.isOwnerPasswordConfigured()
     }
 
     var port: Int? {
@@ -86,6 +90,14 @@ final class AppState: ObservableObject {
         return hasValidWorkingDirectory ? nil : "所选目录不存在或不可访问"
     }
 
+    var ownerPasswordValidationMessage: String? {
+        let token = ownerPassword.trimmingCharacters(in: .whitespacesAndNewlines)
+        if token.isEmpty {
+            return ownerPasswordConfigured ? nil : "请设置 Owner password"
+        }
+        return token.count >= 16 ? nil : "Owner password 至少需要 16 个字符"
+    }
+
     func setWorkingDirectory(_ path: String) {
         workingDirectory = path
         defaults.set(path, forKey: Keys.workingDirectory)
@@ -106,6 +118,24 @@ final class AppState: ObservableObject {
         defaults.set(workingDirectory, forKey: Keys.workingDirectory)
         defaults.set(autoRestart, forKey: Keys.autoRestart)
         notice = "设置已保存。DevSpace 守护配置会在下次启动或重启时应用。"
+    }
+
+    func saveOwnerPassword() {
+        do {
+            try devspace.saveOwnerPassword(ownerPassword)
+            ownerPassword = devspace.ownerPassword() ?? ownerPassword
+            ownerPasswordConfigured = devspace.isOwnerPasswordConfigured()
+            notice = "Owner password 已保存到 ~/.devspace/auth.json。重启 DevSpace 后生效。"
+        } catch {
+            notice = error.localizedDescription
+        }
+    }
+
+    func generateOwnerPassword() {
+        ownerPassword = (
+            UUID().uuidString.replacingOccurrences(of: "-", with: "")
+                + UUID().uuidString.replacingOccurrences(of: "-", with: "")
+        )
     }
 
     func setLaunchAtLogin(_ enabled: Bool) {
@@ -131,6 +161,7 @@ final class AppState: ObservableObject {
         devspacePath = await dsPath
         funnelStatus = await funnel
         devSpaceStatus = await dev
+        ownerPasswordConfigured = devspace.isOwnerPasswordConfigured()
         logs = devspace.readRecentLogs()
     }
 

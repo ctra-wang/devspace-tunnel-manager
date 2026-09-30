@@ -31,6 +31,15 @@ struct DevSpaceService {
         logDirectoryURL.appendingPathComponent("devspace.stderr.log")
     }
 
+    private var configDirectoryURL: URL {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".devspace", isDirectory: true)
+    }
+
+    private var authURL: URL {
+        configDirectoryURL.appendingPathComponent("auth.json")
+    }
+
     func executablePath() async -> String? {
         await CommandLocator.shared.resolve("devspace", candidates: candidates)
     }
@@ -140,7 +149,17 @@ struct DevSpaceService {
         }
 
         if case .external = current.health, let pid = current.pid {
-            try await terminateExternalIfSafe(pid: pid, command: current.command)
+            if let legacyAgent = legacyLaunchAgentURL(port: port) {
+                let result = try await CommandRunner.shared.run(
+                    executable: "/bin/launchctl",
+                    arguments: ["bootout", "gui/\(getuid())", legacyAgent.path]
+                )
+                if result.exitCode != 0 && !result.combinedOutput.contains("No such process") {
+                    throw ManagerError.commandFailed(result.combinedOutput)
+                }
+            } else {
+                try await terminateExternalIfSafe(pid: pid, command: current.command)
+            }
         }
     }
 
@@ -171,6 +190,58 @@ struct DevSpaceService {
 
         try await waitForPortRelease(port: settings.port)
         try await start(settings: settings)
+    }
+
+    func ownerPassword() -> String? {
+        guard
+            let data = try? Data(contentsOf: authURL),
+            let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+            let token = object["ownerToken"] as? String
+        else {
+            return nil
+        }
+
+        let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : token
+    }
+
+    func isOwnerPasswordConfigured() -> Bool {
+        guard let token = ownerPassword() else { return false }
+        return token.trimmingCharacters(in: .whitespacesAndNewlines).count >= 16
+    }
+
+    func saveOwnerPassword(_ password: String) throws {
+        let token = password.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard token.count >= 16 else {
+            throw ManagerError.invalidOwnerPassword
+        }
+
+        let fileManager = FileManager.default
+        try fileManager.createDirectory(
+            at: configDirectoryURL,
+            withIntermediateDirectories: true,
+            attributes: [.posixPermissions: 0o700]
+        )
+
+        var object: [String: Any] = [:]
+        if fileManager.fileExists(atPath: authURL.path) {
+            let existingData = try Data(contentsOf: authURL)
+            guard let existingObject = try JSONSerialization.jsonObject(with: existingData) as? [String: Any] else {
+                throw ManagerError.commandFailed("无法读取 ~/.devspace/auth.json。请先检查该文件是否为有效 JSON。")
+            }
+            object = existingObject
+        }
+
+        object["ownerToken"] = token
+        let data = try JSONSerialization.data(
+            withJSONObject: object,
+            options: [.prettyPrinted, .sortedKeys]
+        )
+        try data.write(to: authURL, options: .atomic)
+        try fileManager.setAttributes(
+            [.posixPermissions: 0o600],
+            ofItemAtPath: authURL.path
+        )
     }
 
     func readRecentLogs(maxBytesPerFile: UInt64 = 48_000) -> String {
@@ -220,7 +291,8 @@ struct DevSpaceService {
             "EnvironmentVariables": [
                 "HOME": homeDirectory,
                 "PATH": path,
-                "PORT": String(settings.port)
+                "PORT": String(settings.port),
+                "DEVSPACE_TRUST_PROXY": "1"
             ],
             "WorkingDirectory": settings.workingDirectory,
             "RunAtLoad": true,

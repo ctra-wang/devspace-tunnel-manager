@@ -49,6 +49,7 @@ struct AppSettings: Equatable {
 enum ManagerError: LocalizedError {
     case commandNotFound(String)
     case invalidPort
+    case invalidOwnerPassword
     case commandFailed(String)
     case portOccupied(pid: Int, command: String?)
     case unsafeExternalProcess(pid: Int, command: String?)
@@ -59,6 +60,8 @@ enum ManagerError: LocalizedError {
             return "找不到命令：\(command)。请确认已经安装，并且终端可以正常执行。"
         case .invalidPort:
             return "端口必须是 1 到 65535 之间的数字。"
+        case .invalidOwnerPassword:
+            return "Owner password 至少需要 16 个字符。"
         case .commandFailed(let message):
             return message
         case .portOccupied(let pid, let command):

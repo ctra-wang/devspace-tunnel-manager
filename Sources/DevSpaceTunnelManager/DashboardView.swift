@@ -5,6 +5,7 @@ struct DashboardView: View {
     @EnvironmentObject private var model: AppState
     @State private var showingResetConfirmation = false
     @State private var didOfferInitialDirectorySelection = false
+    @State private var revealOwnerPassword = false
 
     var body: some View {
         ScrollView {
@@ -337,6 +338,66 @@ struct DashboardView: View {
                     }
 
                     if let message = model.workingDirectoryValidationMessage {
+                        Text(message)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 10) {
+                        Text("Owner password")
+                            .foregroundStyle(.secondary)
+                            .frame(width: 112, alignment: .leading)
+
+                        Group {
+                            if revealOwnerPassword {
+                                TextField("至少 16 个字符", text: $model.ownerPassword)
+                            } else {
+                                SecureField("至少 16 个字符", text: $model.ownerPassword)
+                            }
+                        }
+                        .textFieldStyle(.roundedBorder)
+
+                        Button {
+                            revealOwnerPassword.toggle()
+                        } label: {
+                            Image(systemName: revealOwnerPassword ? "eye.slash" : "eye")
+                        }
+                        .help(revealOwnerPassword ? "隐藏密码" : "显示密码")
+
+                        Button("复制") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(model.ownerPassword, forType: .string)
+                        }
+                        .disabled(model.ownerPassword.isEmpty)
+
+                        Button("生成") {
+                            model.generateOwnerPassword()
+                        }
+
+                        Button("保存密码") {
+                            model.saveOwnerPassword()
+                        }
+                        .disabled(
+                            model.busyAction != nil
+                                || model.ownerPassword.trimmingCharacters(in: .whitespacesAndNewlines).count < 16
+                        )
+                    }
+
+                    HStack(spacing: 7) {
+                        Circle()
+                            .fill(model.ownerPasswordConfigured ? Color.green : Color.secondary)
+                            .frame(width: 7, height: 7)
+                        Text(model.ownerPasswordConfigured ? "已配置" : "未配置")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text("保存在 ~/.devspace/auth.json；修改后重启 DevSpace 生效。")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if let message = model.ownerPasswordValidationMessage {
                         Text(message)
                             .font(.caption)
                             .foregroundStyle(.red)
