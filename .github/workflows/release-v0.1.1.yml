@@ -1,0 +1,58 @@
+name: Release v0.1.1
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/release-v0.1.1.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build arm64 app
+        run: zsh scripts/build-app.sh
+
+      - name: Package release
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent \
+            "dist/DevSpace Tunnel Manager.app" \
+            "dist/DevSpace-Tunnel-Manager-v0.1.1-macos-arm64.zip"
+          cd dist
+          shasum -a 256 "DevSpace-Tunnel-Manager-v0.1.1-macos-arm64.zip" > SHA256SUMS.txt
+
+      - name: Create tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! git rev-parse "v0.1.1" >/dev/null 2>&1; then
+            git tag -a v0.1.1 -m "DevSpace Tunnel Manager v0.1.1"
+            git push origin v0.1.1
+          fi
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v0.1.1 >/dev/null 2>&1; then
+            gh release upload v0.1.1 \
+              "dist/DevSpace-Tunnel-Manager-v0.1.1-macos-arm64.zip" \
+              "dist/SHA256SUMS.txt" \
+              --clobber
+          else
+            gh release create v0.1.1 \
+              "dist/DevSpace-Tunnel-Manager-v0.1.1-macos-arm64.zip" \
+              "dist/SHA256SUMS.txt" \
+              --title "DevSpace Tunnel Manager v0.1.1" \
+              --notes-file RELEASE_NOTES.md
+          fi
