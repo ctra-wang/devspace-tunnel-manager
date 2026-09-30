@@ -1,4 +1,6 @@
 # DevSpace Tunnel Manager
+<img width="920" height="923" alt="image" src="https://github.com/user-attachments/assets/5f993a21-f8a6-4383-aef1-fb1794aa0d26" />
+
 
 A native macOS menu bar app for managing a local [DevSpace](https://github.com/Waishnav/devspace) MCP server together with Tailscale Funnel.
 
