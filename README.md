@@ -21,7 +21,7 @@
 - 自动显示公网 MCP Endpoint
 - DevSpace stdout / stderr 日志查看
 - Owner password 可视化管理
-- 自动配置反向代理信任 `DEVSPACE_TRUST_PROXY=1`
+- 使用 Tailscale TLS-terminated TCP 转发，DevSpace 保持 `trust proxy=false`
 - 菜单栏快捷控制
 - 可选登录后自动启动
 - 自动查找 Tailscale / DevSpace CLI
@@ -68,8 +68,9 @@ devspace serve
 
 ```text
 PORT=<配置端口>
-DEVSPACE_TRUST_PROXY=1
 ```
+
+DevSpace 保持默认的 `trust proxy=false`。
 
 启动：
 
@@ -138,7 +139,7 @@ Reset / 停止当前 Tunnel：
 tailscale funnel reset
 ```
 
-公网 MCP URL 会根据当前 Tunnel 状态动态生成，不会写死在源码中。
+公网 MCP URL 会根据当前 Tunnel 状态中的 `TerminateTLS` / `TCPForward` 动态生成，不会写死在源码中。管理器仍兼容读取旧版 HTTP reverse proxy Tunnel 状态。
 
 ## 日志
 
