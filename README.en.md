@@ -189,7 +189,7 @@ The build script automatically:
 Recommended release asset name:
 
 ```text
-DevSpace-Tunnel-Manager-v0.1.0-macos-arm64.zip
+DevSpace-Tunnel-Manager-v0.1.1-macos-arm64.zip
 ```
 
 Current local builds are ad-hoc signed and are not yet signed with an Apple Developer ID or notarized by Apple.
