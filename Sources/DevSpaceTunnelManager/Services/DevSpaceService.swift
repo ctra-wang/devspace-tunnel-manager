@@ -291,8 +291,7 @@ struct DevSpaceService {
             "EnvironmentVariables": [
                 "HOME": homeDirectory,
                 "PATH": path,
-                "PORT": String(settings.port),
-                "DEVSPACE_TRUST_PROXY": "1"
+                "PORT": String(settings.port)
             ],
             "WorkingDirectory": settings.workingDirectory,
             "RunAtLoad": true,
