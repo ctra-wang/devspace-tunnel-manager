@@ -33,47 +33,36 @@ struct TailscaleService {
             }
 
             guard !result.stdout.isEmpty else {
-                return FunnelStatus(health: .stopped, detail: "尚未配置 Funnel")
+                return FunnelStatus(health: .stopped, detail: "尚未配置 Tunnel")
             }
 
             let data = Data(result.stdout.utf8)
             guard
-                let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                let web = root["Web"] as? [String: Any],
-                !web.isEmpty
+                let root = try JSONSerialization.jsonObject(with: data) as? [String: Any]
             else {
-                return FunnelStatus(health: .stopped, detail: "尚未配置 Funnel")
+                return FunnelStatus(
+                    health: .error("无法解析 Tailscale Tunnel 状态"),
+                    detail: "tailscale funnel status --json 返回了无效 JSON"
+                )
             }
 
-            for (hostAndPort, rawValue) in web {
-                guard
-                    let value = rawValue as? [String: Any],
-                    let handlers = value["Handlers"] as? [String: Any]
-                else {
-                    continue
-                }
-
-                for (_, rawHandler) in handlers {
-                    guard
-                        let handler = rawHandler as? [String: Any],
-                        let proxy = handler["Proxy"] as? String
-                    else {
-                        continue
-                    }
-
-                    let publicHost = normalizedPublicHost(hostAndPort)
-                    return FunnelStatus(
-                        health: .running,
-                        publicURL: "https://\(publicHost)",
-                        proxyTarget: proxy,
-                        detail: "Funnel 正在后台转发"
-                    )
-                }
+            if let tcpStatus = tlsTerminatedTCPStatus(from: root) {
+                return tcpStatus
             }
 
-            return FunnelStatus(health: .stopped, detail: "尚未发现可用的 Funnel 代理")
+            if let webStatus = legacyWebProxyStatus(from: root) {
+                return webStatus
+            }
+
+            return FunnelStatus(
+                health: .stopped,
+                detail: "尚未发现可用的 Tunnel 转发"
+            )
         } catch {
-            return FunnelStatus(health: .error(error.localizedDescription), detail: error.localizedDescription)
+            return FunnelStatus(
+                health: .error(error.localizedDescription),
+                detail: error.localizedDescription
+            )
         }
     }
 
@@ -87,12 +76,20 @@ struct TailscaleService {
 
         let result = try await CommandRunner.shared.run(
             executable: path,
-            arguments: ["funnel", "--bg", "--yes", String(port)]
+            arguments: [
+                "funnel",
+                "--bg",
+                "--yes",
+                "--tls-terminated-tcp=443",
+                "tcp://127.0.0.1:\(port)"
+            ]
         )
 
         guard result.exitCode == 0 else {
             throw ManagerError.commandFailed(
-                result.combinedOutput.isEmpty ? "启动 Tailscale Funnel 失败。" : result.combinedOutput
+                result.combinedOutput.isEmpty
+                    ? "启动 Tailscale Tunnel 失败。"
+                    : result.combinedOutput
             )
         }
     }
@@ -109,9 +106,80 @@ struct TailscaleService {
 
         guard result.exitCode == 0 else {
             throw ManagerError.commandFailed(
-                result.combinedOutput.isEmpty ? "Reset Tailscale Funnel 失败。" : result.combinedOutput
+                result.combinedOutput.isEmpty
+                    ? "Reset Tailscale Tunnel 失败。"
+                    : result.combinedOutput
             )
         }
+    }
+
+    private func tlsTerminatedTCPStatus(from root: [String: Any]) -> FunnelStatus? {
+        guard let tcp = root["TCP"] as? [String: Any] else {
+            return nil
+        }
+
+        let sortedPorts = tcp.keys.sorted {
+            (Int($0) ?? Int.max) < (Int($1) ?? Int.max)
+        }
+
+        for port in sortedPorts {
+            guard
+                let rawHandler = tcp[port] as? [String: Any],
+                let target = rawHandler["TCPForward"] as? String,
+                !target.isEmpty,
+                let terminateTLS = rawHandler["TerminateTLS"] as? String,
+                !terminateTLS.isEmpty
+            else {
+                continue
+            }
+
+            let publicHost = normalizedPublicHost(terminateTLS)
+            return FunnelStatus(
+                health: .running,
+                publicURL: "https://\(publicHost)",
+                proxyTarget: "tcp://\(target)",
+                detail: "Tunnel 使用 TLS-terminated TCP 安全转发"
+            )
+        }
+
+        return nil
+    }
+
+    private func legacyWebProxyStatus(from root: [String: Any]) -> FunnelStatus? {
+        guard
+            let web = root["Web"] as? [String: Any],
+            !web.isEmpty
+        else {
+            return nil
+        }
+
+        for (hostAndPort, rawValue) in web {
+            guard
+                let value = rawValue as? [String: Any],
+                let handlers = value["Handlers"] as? [String: Any]
+            else {
+                continue
+            }
+
+            for (_, rawHandler) in handlers {
+                guard
+                    let handler = rawHandler as? [String: Any],
+                    let proxy = handler["Proxy"] as? String
+                else {
+                    continue
+                }
+
+                let publicHost = normalizedPublicHost(hostAndPort)
+                return FunnelStatus(
+                    health: .running,
+                    publicURL: "https://\(publicHost)",
+                    proxyTarget: proxy,
+                    detail: "检测到旧版 HTTP reverse proxy Tunnel"
+                )
+            }
+        }
+
+        return nil
     }
 
     private func normalizedPublicHost(_ hostAndPort: String) -> String {
