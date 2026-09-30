@@ -4,14 +4,14 @@
 
 <img width="920" height="923" alt="DevSpace Tunnel Manager" src="https://github.com/user-attachments/assets/5f993a21-f8a6-4383-aef1-fb1794aa0d26" />
 
-A native macOS menu bar application for managing a local **DevSpace MCP Server** together with **Tailscale Funnel**.
+A native macOS menu bar application for managing a local **DevSpace MCP Server** together with **Tailscale Tunnel**.
 
 Built with SwiftUI and designed primarily for **Apple Silicon Macs (arm64)**.
 
 ## Features
 
-- Start, inspect, and reset Tailscale Funnel
-- Run Funnel in the background with `tailscale funnel --bg`
+- Start, inspect, and reset Tailscale Tunnel
+- Run Tunnel in the background with `tailscale funnel --bg`
 - Start, stop, and restart `devspace serve`
 - Supervise DevSpace using macOS `launchd`
 - Automatically restart DevSpace after an unexpected exit
@@ -116,7 +116,7 @@ serve
 
 If an older LaunchAgent manages the same port, the app unloads it before migrating the service to the current manager.
 
-## Tailscale Funnel
+## Tailscale Tunnel
 
 Start:
 
@@ -130,13 +130,13 @@ Inspect:
 tailscale funnel status --json
 ```
 
-Reset / stop the current Funnel:
+Reset / stop the current Tunnel:
 
 ```bash
 tailscale funnel reset
 ```
 
-The public MCP URL is derived dynamically from the current Funnel configuration and is never hard-coded.
+The public MCP URL is derived dynamically from the current Tunnel configuration and is never hard-coded.
 
 ## Logs
 
