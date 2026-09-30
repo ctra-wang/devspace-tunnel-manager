@@ -18,9 +18,7 @@ struct DashboardView: View {
                     devspacePanel
                 }
 
-                endpointPanel
                 logPanel
-                environmentPanel
             }
             .padding(22)
         }
@@ -48,16 +46,16 @@ struct DashboardView: View {
             Text(model.notice ?? "")
         }
         .confirmationDialog(
-            "Reset Tailscale Funnel？",
+            "Reset Tailscale Tunnel？",
             isPresented: $showingResetConfirmation,
             titleVisibility: .visible
         ) {
-            Button("Reset Funnel", role: .destructive) {
+            Button("Reset Tunnel", role: .destructive) {
                 Task { await model.resetTailscale() }
             }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("该操作会执行 tailscale funnel reset，并清除当前 Funnel 配置。")
+            Text("该操作会执行 tailscale funnel reset，并清除当前 Tunnel 配置。")
         }
     }
 
@@ -72,7 +70,7 @@ struct DashboardView: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text("DevSpace Tunnel Manager")
                     .font(.title2.weight(.semibold))
-                Text("统一守护本地 MCP 服务与 Tailscale Funnel")
+                Text("统一守护本地 MCP 服务与 Tailscale Tunnel")
                     .foregroundStyle(.secondary)
             }
 
@@ -86,66 +84,201 @@ struct DashboardView: View {
 
     private var connectionBar: some View {
         GroupBox {
-            HStack(alignment: .top, spacing: 16) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("本地端口")
-                        .font(.callout.weight(.medium))
-                    HStack(spacing: 8) {
-                        TextField("7676", text: $model.portText)
-                            .textFieldStyle(.roundedBorder)
-                            .frame(width: 100)
-                            .font(.system(.body, design: .monospaced))
-                        Button("保存设置") {
-                            model.saveSettings()
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(alignment: .top, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("本地端口")
+                            .font(.callout.weight(.medium))
+                        HStack(spacing: 8) {
+                            TextField("7676", text: $model.portText)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 100)
+                                .font(.system(.body, design: .monospaced))
+                            Button("保存设置") {
+                                model.saveSettings()
+                            }
+                            .disabled(model.port == nil || model.busyAction != nil)
                         }
-                        .disabled(model.port == nil || model.busyAction != nil)
+                        if let message = model.portValidationMessage {
+                            Text(message)
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        }
                     }
-                    if let message = model.portValidationMessage {
-                        Text(message)
-                            .font(.caption)
-                            .foregroundStyle(.red)
+
+                    Divider()
+                        .frame(height: 54)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("一键控制")
+                            .font(.callout.weight(.medium))
+                        HStack(spacing: 8) {
+                            Button {
+                                Task { await model.startAll() }
+                            } label: {
+                                Label("启动全部", systemImage: "play.fill")
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(model.port == nil || model.busyAction != nil)
+
+                            Button {
+                                Task { await model.stopAll() }
+                            } label: {
+                                Label("停止全部", systemImage: "stop.fill")
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(model.busyAction != nil)
+
+                            Button {
+                                Task { await model.refresh() }
+                            } label: {
+                                Label("刷新", systemImage: "arrow.clockwise")
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(model.busyAction != nil)
+                        }
+                    }
+
+                    Spacer()
+
+                    if model.busyAction != nil {
+                        ProgressView()
+                            .controlSize(.small)
+                            .padding(.top, 22)
                     }
                 }
 
                 Divider()
-                    .frame(height: 54)
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("一键控制")
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("运行设置")
                         .font(.callout.weight(.medium))
-                    HStack(spacing: 8) {
-                        Button {
-                            Task { await model.startAll() }
-                        } label: {
-                            Label("启动全部", systemImage: "play.fill")
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(model.port == nil || model.busyAction != nil)
 
-                        Button {
-                            Task { await model.stopAll() }
-                        } label: {
-                            Label("停止全部", systemImage: "stop.fill")
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(model.busyAction != nil)
+                    HStack(spacing: 14) {
+                        Toggle(
+                            "DevSpace 异常退出自动拉起",
+                            isOn: Binding(
+                                get: { model.autoRestart },
+                                set: {
+                                    model.autoRestart = $0
+                                    model.saveSettings()
+                                }
+                            )
+                        )
 
-                        Button {
-                            Task { await model.refresh() }
-                        } label: {
-                            Label("刷新", systemImage: "arrow.clockwise")
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(model.busyAction != nil)
+                        Toggle(
+                            "登录后启动管理器",
+                            isOn: Binding(
+                                get: { model.launchAtLogin },
+                                set: { model.setLaunchAtLogin($0) }
+                            )
+                        )
                     }
-                }
 
-                Spacer()
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(alignment: .firstTextBaseline, spacing: 10) {
+                            Text("工作目录")
+                                .foregroundStyle(.secondary)
+                                .frame(width: 112, alignment: .leading)
 
-                if model.busyAction != nil {
-                    ProgressView()
-                        .controlSize(.small)
-                        .padding(.top, 22)
+                            TextField("请选择 DevSpace 工作目录", text: $model.workingDirectory)
+                                .textFieldStyle(.roundedBorder)
+
+                            Button {
+                                chooseWorkingDirectory()
+                            } label: {
+                                Label("选择目录", systemImage: "folder")
+                            }
+
+                            Button("保存") {
+                                model.saveSettings()
+                            }
+                            .disabled(
+                                model.busyAction != nil
+                                    || model.port == nil
+                                    || !model.hasValidWorkingDirectory
+                            )
+                        }
+
+                        if let message = model.workingDirectoryValidationMessage {
+                            Text(message)
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(spacing: 10) {
+                            Text("Owner password")
+                                .foregroundStyle(.secondary)
+                                .frame(width: 112, alignment: .leading)
+
+                            Group {
+                                if revealOwnerPassword {
+                                    TextField("至少 16 个字符", text: $model.ownerPassword)
+                                } else {
+                                    SecureField("至少 16 个字符", text: $model.ownerPassword)
+                                }
+                            }
+                            .textFieldStyle(.roundedBorder)
+
+                            Button {
+                                revealOwnerPassword.toggle()
+                            } label: {
+                                Image(systemName: revealOwnerPassword ? "eye.slash" : "eye")
+                            }
+                            .help(revealOwnerPassword ? "隐藏密码" : "显示密码")
+
+                            Button("复制") {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(model.ownerPassword, forType: .string)
+                            }
+                            .disabled(model.ownerPassword.isEmpty)
+
+                            Button("生成") {
+                                model.generateOwnerPassword()
+                            }
+
+                            Button("保存密码") {
+                                model.saveOwnerPassword()
+                            }
+                            .disabled(
+                                model.busyAction != nil
+                                    || model.ownerPassword.trimmingCharacters(in: .whitespacesAndNewlines).count < 16
+                            )
+                        }
+
+                        HStack(spacing: 7) {
+                            Circle()
+                                .fill(model.ownerPasswordConfigured ? Color.green : Color.secondary)
+                                .frame(width: 7, height: 7)
+                            Text(model.ownerPasswordConfigured ? "已配置" : "未配置")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text("保存在 ~/.devspace/auth.json；修改后重启 DevSpace 生效。")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        if let message = model.ownerPasswordValidationMessage {
+                            Text(message)
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        }
+                    }
+
+                    Divider()
+
+                    InfoLine(
+                        label: "tailscale",
+                        value: model.tailscalePath ?? "未找到",
+                        monospaced: true
+                    )
+                    InfoLine(
+                        label: "devspace",
+                        value: model.devspacePath ?? "未找到",
+                        monospaced: true
+                    )
                 }
             }
             .padding(4)
@@ -154,7 +287,7 @@ struct DashboardView: View {
 
     private var tailscalePanel: some View {
         ServicePanel(
-            title: "Tailscale Funnel",
+            title: "Tailscale Tunnel",
             systemImage: "network",
             health: model.funnelStatus.health
         ) {
@@ -173,6 +306,44 @@ struct DashboardView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: 7) {
+                    Text("MCP Endpoint")
+                        .font(.callout.weight(.medium))
+
+                    HStack(spacing: 8) {
+                        Image(systemName: "link")
+                            .foregroundStyle(.secondary)
+
+                        Text(model.funnelStatus.mcpURL ?? "启动 Tailscale Tunnel 后会显示公网 MCP 地址")
+                            .font(.system(.caption, design: .monospaced))
+                            .textSelection(.enabled)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+
+                        Spacer()
+
+                        if let urlString = model.funnelStatus.mcpURL,
+                           let url = URL(string: urlString) {
+                            Button {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(urlString, forType: .string)
+                            } label: {
+                                Image(systemName: "doc.on.doc")
+                            }
+                            .help("复制 MCP Endpoint")
+
+                            Button {
+                                NSWorkspace.shared.open(url)
+                            } label: {
+                                Image(systemName: "arrow.up.right.square")
+                            }
+                            .help("打开 MCP Endpoint")
+                        }
+                    }
+                }
             }
         } actions: {
             Button("启动") {
@@ -242,40 +413,6 @@ struct DashboardView: View {
         .frame(maxWidth: .infinity)
     }
 
-    private var endpointPanel: some View {
-        GroupBox("MCP Endpoint") {
-            HStack(spacing: 12) {
-                Image(systemName: "link")
-                    .foregroundStyle(.secondary)
-
-                Text(model.funnelStatus.mcpURL ?? "启动 Tailscale Funnel 后会显示公网 MCP 地址")
-                    .font(.system(.body, design: .monospaced))
-                    .textSelection(.enabled)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-
-                Spacer()
-
-                if let urlString = model.funnelStatus.mcpURL,
-                   let url = URL(string: urlString) {
-                    Button {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(urlString, forType: .string)
-                    } label: {
-                        Label("复制", systemImage: "doc.on.doc")
-                    }
-
-                    Button {
-                        NSWorkspace.shared.open(url)
-                    } label: {
-                        Label("打开", systemImage: "arrow.up.right.square")
-                    }
-                }
-            }
-            .padding(4)
-        }
-    }
-
     private var logPanel: some View {
         GroupBox("DevSpace 日志") {
             ScrollView {
@@ -287,137 +424,6 @@ struct DashboardView: View {
             }
             .frame(minHeight: 150, maxHeight: 230)
             .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
-        }
-    }
-
-    private var environmentPanel: some View {
-        GroupBox("运行设置") {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 14) {
-                    Toggle(
-                        "DevSpace 异常退出自动拉起",
-                        isOn: Binding(
-                            get: { model.autoRestart },
-                            set: {
-                                model.autoRestart = $0
-                                model.saveSettings()
-                            }
-                        )
-                    )
-
-                    Toggle(
-                        "登录后启动管理器",
-                        isOn: Binding(
-                            get: { model.launchAtLogin },
-                            set: { model.setLaunchAtLogin($0) }
-                        )
-                    )
-                }
-
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(alignment: .firstTextBaseline, spacing: 10) {
-                        Text("工作目录")
-                            .foregroundStyle(.secondary)
-                        TextField("请选择 DevSpace 工作目录", text: $model.workingDirectory)
-                            .textFieldStyle(.roundedBorder)
-
-                        Button {
-                            chooseWorkingDirectory()
-                        } label: {
-                            Label("选择目录", systemImage: "folder")
-                        }
-
-                        Button("保存") {
-                            model.saveSettings()
-                        }
-                        .disabled(
-                            model.busyAction != nil
-                                || model.port == nil
-                                || !model.hasValidWorkingDirectory
-                        )
-                    }
-
-                    if let message = model.workingDirectoryValidationMessage {
-                        Text(message)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 10) {
-                        Text("Owner password")
-                            .foregroundStyle(.secondary)
-                            .frame(width: 112, alignment: .leading)
-
-                        Group {
-                            if revealOwnerPassword {
-                                TextField("至少 16 个字符", text: $model.ownerPassword)
-                            } else {
-                                SecureField("至少 16 个字符", text: $model.ownerPassword)
-                            }
-                        }
-                        .textFieldStyle(.roundedBorder)
-
-                        Button {
-                            revealOwnerPassword.toggle()
-                        } label: {
-                            Image(systemName: revealOwnerPassword ? "eye.slash" : "eye")
-                        }
-                        .help(revealOwnerPassword ? "隐藏密码" : "显示密码")
-
-                        Button("复制") {
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(model.ownerPassword, forType: .string)
-                        }
-                        .disabled(model.ownerPassword.isEmpty)
-
-                        Button("生成") {
-                            model.generateOwnerPassword()
-                        }
-
-                        Button("保存密码") {
-                            model.saveOwnerPassword()
-                        }
-                        .disabled(
-                            model.busyAction != nil
-                                || model.ownerPassword.trimmingCharacters(in: .whitespacesAndNewlines).count < 16
-                        )
-                    }
-
-                    HStack(spacing: 7) {
-                        Circle()
-                            .fill(model.ownerPasswordConfigured ? Color.green : Color.secondary)
-                            .frame(width: 7, height: 7)
-                        Text(model.ownerPasswordConfigured ? "已配置" : "未配置")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text("保存在 ~/.devspace/auth.json；修改后重启 DevSpace 生效。")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    if let message = model.ownerPasswordValidationMessage {
-                        Text(message)
-                            .font(.caption)
-                            .foregroundStyle(.red)
-                    }
-                }
-
-                Divider()
-
-                InfoLine(
-                    label: "tailscale",
-                    value: model.tailscalePath ?? "未找到",
-                    monospaced: true
-                )
-                InfoLine(
-                    label: "devspace",
-                    value: model.devspacePath ?? "未找到",
-                    monospaced: true
-                )
-            }
-            .padding(4)
         }
     }
 
