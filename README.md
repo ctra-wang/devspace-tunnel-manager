@@ -185,7 +185,7 @@ open "dist/DevSpace Tunnel Manager.app"
 建议 Release 附件命名：
 
 ```text
-DevSpace-Tunnel-Manager-v0.1.0-macos-arm64.zip
+DevSpace-Tunnel-Manager-v0.1.1-macos-arm64.zip
 ```
 
 当前本地构建使用 ad-hoc 签名，尚未进行 Apple Developer ID 签名与 Notarization。
