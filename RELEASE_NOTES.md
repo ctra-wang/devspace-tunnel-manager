@@ -9,8 +9,9 @@
 - DevSpace 异常退出自动拉起
 - 可配置本地端口与工作目录
 - DevSpace Owner password 可视化管理
-- 自动配置 `DEVSPACE_TRUST_PROXY=1`
+- 使用 Tailscale TLS-terminated TCP，DevSpace 保持 `trust proxy=false`
 - Tailscale Tunnel 启动、状态检测与 Reset
+- 修复 `ERR_ERL_UNEXPECTED_X_FORWARDED_FOR` / `ERR_ERL_PERMISSIVE_TRUST_PROXY` 代理校验冲突
 - 公网 MCP Endpoint 展示、复制与打开
 - DevSpace 日志查看
 - 登录后自动启动管理器
